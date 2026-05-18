@@ -36,11 +36,16 @@ async function startServer() {
       };
 
       const prompt = `
-        Analyze the food ingredients list in this image.
-        Determine if the product is:
-        1. "HALAL": All ingredients are halal.
-        2. "HARAM": Contains prohibited ingredients (pork-derived, non-allowed alcohol, non-slaughtered animals).
-        3. "MASHBOOH": Contains doubtful ingredients (like E471 without a stated source).
+        Analyze the food ingredients list and nutritional facts in this image.
+        
+        1. Determine if the product is:
+           - "HALAL": All ingredients are halal.
+           - "HARAM": Contains prohibited ingredients (pork-derived, non-allowed alcohol, non-slaughtered animals).
+           - "MASHBOOH": Contains doubtful ingredients.
+        
+        2. Extract nutritional values per 100g if available in the image. 
+           Include: Energy (kcal), Protein (g), Fat (g), Carbohydrates (g), Sugars (g), and Salt (g).
+           If not found, use estimated values based on typical products or leave null.
 
         Provide detailed analysis in ${langNames[lang] || 'English'}.
       `;
@@ -63,7 +68,18 @@ async function startServer() {
               ingredients: { type: Type.ARRAY, items: { type: Type.STRING } },
               haramIngredients: { type: Type.ARRAY, items: { type: Type.STRING } },
               reasoning: { type: Type.STRING },
-              advice: { type: Type.STRING }
+              advice: { type: Type.STRING },
+              nutrition: {
+                type: Type.OBJECT,
+                properties: {
+                  energy: { type: Type.STRING, description: "Energy in kcal per 100g" },
+                  protein: { type: Type.STRING, description: "Protein in g per 100g" },
+                  fat: { type: Type.STRING, description: "Fat in g per 100g" },
+                  carbs: { type: Type.STRING, description: "Carbohydrates in g per 100g" },
+                  sugar: { type: Type.STRING, description: "Sugars in g per 100g" },
+                  salt: { type: Type.STRING, description: "Salt in g per 100g" }
+                }
+              }
             },
             required: ["status", "ingredients", "reasoning", "advice"]
           }

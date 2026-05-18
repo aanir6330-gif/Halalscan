@@ -34,6 +34,14 @@ interface ScanResult {
   haramIngredients: string[];
   reasoning: string;
   advice: string;
+  nutrition?: {
+    energy?: string;
+    protein?: string;
+    fat?: string;
+    carbs?: string;
+    sugar?: string;
+    salt?: string;
+  };
 }
 
 // Translations
@@ -73,13 +81,20 @@ const translations = {
     unlimitedTitle: "مسح غير محدود",
     watchToActivate: "شاهد إعلانات لتفعيل المسح اللانهائي",
     option15m: "3 إعلانات = 15 دقيقة",
-    option60m: "5 إعلانات = 60 دقيقة",
+    option60m: "7 إعلانات = 60 دقيقة",
     active: "نشط الآن",
     remainingAds: "إعلانات متبقية: ",
     unlimitedActive: "المسح اللانهائي مفعل",
     minsLeft: "دقائق متبقية: ",
     noTime: "انتهى وقت المسح المجاني",
-    boost: "شحن وقت"
+    boost: "شحن وقت",
+    nutrition: "المعلومات الغذائية (لكل 100 جرام)",
+    energy: "الطاقة (kcal)",
+    protein: "البروتين (g)",
+    fat: "الدهون (g)",
+    carbs: "الكربوهيدرات (g)",
+    sugar: "السكر (g)",
+    salt: "الملح (g)"
   },
   en: {
     title: "Simple Halal Check",
@@ -116,13 +131,20 @@ const translations = {
     unlimitedTitle: "Unlimited Scans",
     watchToActivate: "Watch ads to activate infinite scanning",
     option15m: "3 Ads = 15 Mins",
-    option60m: "5 Ads = 60 Mins",
+    option60m: "7 Ads = 60 Mins",
     active: "Active Now",
     remainingAds: "Ads remaining: ",
     unlimitedActive: "Unlimited Active",
     minsLeft: "Mins left: ",
     noTime: "Free scan time expired",
-    boost: "Boost Time"
+    boost: "Boost Time",
+    nutrition: "Nutrition Facts (per 100g)",
+    energy: "Energy (kcal)",
+    protein: "Protein (g)",
+    fat: "Fat (g)",
+    carbs: "Carbs (g)",
+    sugar: "Sugar (g)",
+    salt: "Salt (g)"
   },
   fr: {
     title: "Simple Halal Check",
@@ -154,7 +176,24 @@ const translations = {
     alert: "Alerte",
     buyOnline: "Achat en ligne",
     onlineSites: "Épicerie en ligne",
-    scanner: "Scanner"
+    scanner: "Scanner",
+    unlimitedTitle: "Scans Illimités",
+    watchToActivate: "Regardez des pubs pour activer le scan infini",
+    option15m: "3 Pubs = 15 Mins",
+    option60m: "7 Pubs = 60 Mins",
+    active: "Actif Maintenant",
+    remainingAds: "Pubs restantes: ",
+    unlimitedActive: "Illimité Activé",
+    minsLeft: "Mins restantes: ",
+    noTime: "Temps de scan gratuit expiré",
+    boost: "Boost Temps",
+    nutrition: "Infos Nutritionnelles (pour 100g)",
+    energy: "Énergie (kcal)",
+    protein: "Protéines (g)",
+    fat: "Matières grasses (g)",
+    carbs: "Glucides (g)",
+    sugar: "Sucre (g)",
+    salt: "Sel (g)"
   },
   es: {
     title: "Simple Halal Check",
@@ -186,9 +225,45 @@ const translations = {
     alert: "Alerta",
     buyOnline: "Compra online",
     onlineSites: "Comestibles online",
-    scanner: "Escáner"
+    scanner: "Escáner",
+    unlimitedTitle: "Escaneos Ilimitados",
+    watchToActivate: "Mira anuncios para activar escaneo infinito",
+    option15m: "3 Anuncios = 15 Mins",
+    option60m: "7 Anuncios = 60 Mins",
+    active: "Activo Ahora",
+    remainingAds: "Anuncios restantes: ",
+    unlimitedActive: "Ilimitado Activo",
+    minsLeft: "Mins restantes: ",
+    noTime: "Tiempo de escaneo gratuito expirado",
+    boost: "Potenciar Tiempo",
+    nutrition: "Información Nutricional (por 100g)",
+    energy: "Energía (kcal)",
+    protein: "Proteínas (g)",
+    fat: "Grasas (g)",
+    carbs: "Carbohidratos (g)",
+    sugar: "Azúcar (g)",
+    salt: "Sal (g)"
   }
 };
+
+const Logo = ({ className = "w-10 h-10" }: { className?: string }) => (
+  <div className={cn("relative flex items-center justify-center", className)}>
+    {/* Blue circle background/outline */}
+    <div className="absolute inset-0 rounded-full border-[3px] border-emerald-500/20" />
+    <div className="absolute inset-0 rounded-full border-t-[3px] border-r-[3px] border-sky-500 shadow-[0_0_15px_rgba(14,165,233,0.3)]" />
+    
+    {/* Checkmark */}
+    <svg viewBox="0 0 24 24" className="w-2/3 h-2/3 text-emerald-500 drop-shadow-lg" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="20 6 9 17 4 12" />
+    </svg>
+    
+    {/* Minaret silhouette (simplified representation) */}
+    <div className="absolute bottom-1 right-1 w-2.5 h-6 bg-white rounded-t-full shadow-sm">
+      <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-white rounded-full" />
+      <div className="absolute top-1 left-1/2 -translate-x-1/2 w-1 h-3 bg-emerald-100/50 rounded-full" />
+    </div>
+  </div>
+);
 
 const ONLINE_STORES = [
   { name: "MyHalalShop", url: "https://myhalalshop.com", desc: "Premium Halal Groceries", icon: "🌐" },
@@ -629,10 +704,8 @@ export default function App() {
           >
             <div className="w-full max-w-sm">
               <div className="flex flex-col items-center mb-12">
-                <div className="w-20 h-20 bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-[28px] flex items-center justify-center shadow-2xl shadow-emerald-500/20 mb-6">
-                  <Scan className="text-white w-10 h-10" />
-                </div>
-                <h1 className="text-4xl font-black tracking-tight mb-2">HalalScan</h1>
+                <Logo className="w-24 h-24 mb-6" />
+                <h1 className="text-4xl font-black tracking-tight mb-2">Simple Halal Check</h1>
                 <p className="text-emerald-500 font-bold tracking-[4px] text-xs uppercase">{t.subtitle}</p>
               </div>
 
@@ -768,9 +841,7 @@ export default function App() {
       {/* Header */}
       <header className="p-4 flex items-center justify-between border-b border-white/5 backdrop-blur-md sticky top-0 z-50">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20">
-            <Scan className="text-white w-6 h-6" />
-          </div>
+          <Logo className="w-10 h-10" />
           <div>
             <h1 className="text-xl font-bold tracking-tight text-white">{t.title}</h1>
             <p className="text-[10px] text-emerald-500 uppercase tracking-[2px] font-medium">{t.subtitle}</p>
@@ -1058,6 +1129,29 @@ export default function App() {
                   <p className="text-lg leading-relaxed text-gray-200">
                     {result.reasoning}
                   </p>
+
+                  {/* Nutrition Section */}
+                  {result.nutrition && (
+                    <div className="mt-6 font-mono text-[11px]">
+                      <h4 className="text-[10px] text-emerald-500 font-black uppercase tracking-widest mb-3 border-b border-emerald-500/20 pb-2">{t.nutrition}</h4>
+                      <div className="grid grid-cols-2 gap-px bg-white/5 border border-white/5 rounded-xl overflow-hidden">
+                        {[
+                          { label: t.energy, value: result.nutrition.energy },
+                          { label: t.protein, value: result.nutrition.protein },
+                          { label: t.fat, value: result.nutrition.fat },
+                          { label: t.carbs, value: result.nutrition.carbs },
+                          { label: t.sugar, value: result.nutrition.sugar },
+                          { label: t.salt, value: result.nutrition.salt },
+                        ].map((item, idx) => (
+                          <div key={idx} className="bg-[#16171A] p-3 flex flex-col gap-1">
+                            <span className="text-[9px] text-gray-500 uppercase font-black">{item.label}</span>
+                            <span className="text-white font-bold text-lg">{item.value || '-'}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="mt-4">
                     <AdBanner slot="results_middle" format="rectangle" />
                   </div>
@@ -1169,7 +1263,7 @@ export default function App() {
                       <ArrowLeft className={cn("w-4 h-4", lang === 'en' && 'rotate-180')} />
                     </button>
                     <button 
-                      onClick={() => setTargetAds(5)}
+                      onClick={() => setTargetAds(7)}
                       className="w-full bg-white/5 border border-white/10 p-5 rounded-3xl flex items-center justify-between group hover:bg-emerald-500/10 hover:border-emerald-500/30 transition-all font-bold"
                     >
                       <span className="text-sm">{t.option60m}</span>
