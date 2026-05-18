@@ -1,5 +1,4 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { GoogleGenAI, Type } from "@google/genai";
 import { 
   Camera, 
   Scan, 
@@ -16,21 +15,17 @@ import {
   ArrowRight,
   ArrowLeft,
   Star,
-  MapPin,
   ShoppingBag,
-  ExternalLink,
-  Navigation
+  ExternalLink
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
-import { APIProvider, Map, AdvancedMarker, Pin, InfoWindow, useAdvancedMarkerRef, useMap } from '@vis.gl/react-google-maps';
 import { cn } from './lib/utils';
+import { AdBanner } from './components/AdBanner';
 
 // Types
 type HalalStatus = 'HALAL' | 'HARAM' | 'MASHBOOH' | 'UNKNOWN';
 type Language = 'ar' | 'en' | 'fr' | 'es';
-type SubscriptionTier = 'NONE' | 'DAILY' | 'MONTHLY' | 'YEARLY';
-type AppTab = 'scanner' | 'stores' | 'online';
+type AppTab = 'scanner' | 'online';
 
 interface ScanResult {
   status: HalalStatus;
@@ -41,24 +36,19 @@ interface ScanResult {
   advice: string;
 }
 
-interface Purchase {
-  id: string;
-  date: string;
-  tier: SubscriptionTier;
-  amount: string;
-}
-
-const AI_MODEL = "gemini-flash-latest";
-
+// Translations
 const translations = {
   ar: {
-    title: "HalalScan",
+    title: "Simple Halal Check",
     subtitle: "حلال سكان",
-    scanIngredients: "وجه الكاميرا نحو المكونات",
+    scanIngredients: "وجه الكاميرا نحو المكونات أو اختر ملفاً",
     loading: "جاري التحليل الذكي...",
     loadingSub: "نحن نتحقق من المكونات بدقة",
-    cameraError: "فشل الوصول للكاميرا. يرجى التأكد من الأذونات أو جرب فتح التطبيق في متصفح خارجي (خارج الإطار).",
-    error: "حدث خطأ أثناء تحليل الصورة. يرجى المحاولة مرة أخرى.",
+    cameraError: "فشل الوصول للكاميرا. يرجى التأكد من الأذونات عبر الضغط على أيقونة القفل (Lock) بجانب شريط العنوان وتفعيل الكاميرا، أو جرب خيار 'تحميل ملف'، أو افتح التطبيق في متصفح خارجي.",
+    cameraNotReady: "الكاميرا ليست جاهزة بعد. يرجى الانتظار ثانية.",
+    openInNewTab: "فتح في متصفح خارجي",
+    uploadFile: "تحميل صورة",
+    error: "حدث خطأ أثناء تحليل الصورة. يرجى التأكد من وضوح النص والمحاولة مرة أخرى.",
     retry: "إعادة المحاولة",
     guide: "دليل المواد",
     guideSub: "تعرف على الرموز E",
@@ -77,45 +67,31 @@ const translations = {
     dir: "rtl" as const,
     font: "font-sans",
     alert: "تنبيه",
-    premium: "بريميوم",
-    goPremium: "اشترك الآن",
-    premiumFeatures: "ميزات المشتركين",
-    offlineMode: "وضع بدون إنترنت",
-    noAds: "بدون إعلانات",
-    fastSupport: "دعم سريع",
-    plans: {
-      daily: "يومي",
-      monthly: "شهري",
-      yearly: "سنوي",
-      priceDay: "1$",
-      priceMonth: "5$",
-      priceYear: "50$"
-    },
-    adSpace: "مساحة إعلانية (تختفي للمشتركين)",
-    purchaseHistory: "سجل المشتريات",
-    noPurchases: "لا يوجد مشتريات سابقة",
-    date: "التاريخ",
-    amount: "المبلغ",
-    plan: "الخطة",
-    nearbyStores: "متاجر قريبة",
     buyOnline: "تسوق أونلاين",
-    findHalal: "ابحث عن طعام حلال",
     onlineSites: "مواقع بيع الطعام",
-    shopping: "التسوق",
     scanner: "الماسح",
-    noStores: "لم يتم العثور على متاجر قريبة",
-    storeError: "خطأ في تحميل الخريطة",
-    premiumFeature: "ميزة للمشتركين فقط",
-    upgradeToUse: "اشترك في النسخة الكاملة للوصول إلى خريطة المتاجر القريبة والبحث الذكي"
+    unlimitedTitle: "مسح غير محدود",
+    watchToActivate: "شاهد إعلانات لتفعيل المسح اللانهائي",
+    option15m: "3 إعلانات = 15 دقيقة",
+    option60m: "5 إعلانات = 60 دقيقة",
+    active: "نشط الآن",
+    remainingAds: "إعلانات متبقية: ",
+    unlimitedActive: "المسح اللانهائي مفعل",
+    minsLeft: "دقائق متبقية: ",
+    noTime: "انتهى وقت المسح المجاني",
+    boost: "شحن وقت"
   },
   en: {
-    title: "HalalScan",
+    title: "Simple Halal Check",
     subtitle: "AI Component Analysis",
-    scanIngredients: "Point camera at ingredients",
+    scanIngredients: "Point camera at ingredients or upload photo",
     loading: "Intelligent Analysis...",
     loadingSub: "Verifying ingredients precisely",
-    cameraError: "Camera access failed. Please check permissions or try opening the app in a new tab (outside the iframe).",
-    error: "Error analyzing image. Please try again.",
+    cameraError: "Camera access failed. Please grant permission by clicking the lock icon (🔒) in your browser's address bar and enabling the camera. Alternatively, use 'Upload Photo' or open in a new tab.",
+    cameraNotReady: "Camera is not ready yet. Please wait a second.",
+    openInNewTab: "Fix Permissions (New Tab)",
+    uploadFile: "Upload Photo",
+    error: "Error analyzing image. Please ensure the text is clear and try again.",
     retry: "Retry",
     guide: "E-Numbers Guide",
     guideSub: "Learn about additive codes",
@@ -134,44 +110,29 @@ const translations = {
     dir: "ltr" as const,
     font: "font-sans",
     alert: "Alert",
-    premium: "Premium",
-    goPremium: "Go Premium",
-    premiumFeatures: "Premium Features",
-    offlineMode: "Offline Mode",
-    noAds: "No Ads",
-    fastSupport: "Fast Support",
-    plans: {
-      daily: "Daily",
-      monthly: "Monthly",
-      yearly: "Yearly",
-      priceDay: "$1",
-      priceMonth: "$5",
-      priceYear: "$50"
-    },
-    adSpace: "Advertisement (Hidden for Pro)",
-    purchaseHistory: "Purchase History",
-    noPurchases: "No previous purchases",
-    date: "Date",
-    amount: "Amount",
-    plan: "Plan",
-    nearbyStores: "Nearby Stores",
     buyOnline: "Buy Online",
-    findHalal: "Find Halal Stores",
     onlineSites: "Online Grocery",
-    shopping: "Shopping",
     scanner: "Scanner",
-    noStores: "No nearby stores found",
-    storeError: "Error loading map",
-    premiumFeature: "Premium Feature",
-    upgradeToUse: "Upgrade to Pro to access nearby store map and intelligent location search."
+    unlimitedTitle: "Unlimited Scans",
+    watchToActivate: "Watch ads to activate infinite scanning",
+    option15m: "3 Ads = 15 Mins",
+    option60m: "5 Ads = 60 Mins",
+    active: "Active Now",
+    remainingAds: "Ads remaining: ",
+    unlimitedActive: "Unlimited Active",
+    minsLeft: "Mins left: ",
+    noTime: "Free scan time expired",
+    boost: "Boost Time"
   },
   fr: {
-    title: "HalalScan",
+    title: "Simple Halal Check",
     subtitle: "Analyse par IA",
     scanIngredients: "Pointer la caméra vers les ingrédients",
     loading: "Analyse Intelligente...",
     loadingSub: "Vérification précise des ingrédients",
-    cameraError: "Échec de l'accès à la caméra. Vérifiez les permissions ou ouvrez l'appli dans un nouvel onglet (hors de l'iframe).",
+    cameraError: "Droit d'accès à la caméra refusé. Veuillez accorder la permission en cliquant sur le cadenas (🔒) dans la barre d'adresse, ou utilisez 'Charger Photo' ou ouvrez dans un nouvel onglet.",
+    cameraNotReady: "La caméra n'est pas encore prête. Veuillez patienter.",
+    openInNewTab: "Gérer Permissions (Nouvel Onglet)",
     error: "Erreur d'analyse. Veuillez réessayer.",
     retry: "Réessayer",
     guide: "Guide des additifs",
@@ -191,44 +152,19 @@ const translations = {
     dir: "ltr" as const,
     font: "font-sans",
     alert: "Alerte",
-    premium: "Premium",
-    goPremium: "Passer au Premium",
-    premiumFeatures: "Fonctions Premium",
-    offlineMode: "Mode hors ligne",
-    noAds: "Sans publicités",
-    fastSupport: "Support rapide",
-    plans: {
-      daily: "Quotidien",
-      monthly: "Mensuel",
-      yearly: "Annuel",
-      priceDay: "1€",
-      priceMonth: "5€",
-      priceYear: "50€"
-    },
-    adSpace: "Publicité (Masquée pour Pro)",
-    purchaseHistory: "Historique d'achat",
-    noPurchases: "Aucun achat précédent",
-    date: "Date",
-    amount: "Montant",
-    plan: "Plan",
-    nearbyStores: "Magasins à proximité",
     buyOnline: "Achat en ligne",
-    findHalal: "Trouver des magasins Halal",
     onlineSites: "Épicerie en ligne",
-    shopping: "Achats",
-    scanner: "Scanner",
-    noStores: "Aucun magasin trouvé",
-    storeError: "Erreur de chargement",
-    premiumFeature: "Fonction Premium",
-    upgradeToUse: "Passez au Pro pour accéder à la carte des magasins et à la recherche intelligente."
+    scanner: "Scanner"
   },
   es: {
-    title: "HalalScan",
+    title: "Simple Halal Check",
     subtitle: "Análisis por IA",
     scanIngredients: "Apunte la cámara a los ingredientes",
     loading: "Análisis Inteligente...",
     loadingSub: "Verificando ingredientes con precisión",
-    cameraError: "Fallo al acceder a la cámara. Verifica los permisos o abre la app en una nueva pestaña (fuera del iframe).",
+    cameraError: "Permiso de cámara denegado. Por favor, concede el permiso haciendo clic en el candado (🔒) en la barra de direcciones y activando la cámara. O usa 'Subir Foto'.",
+    cameraNotReady: "La cámara no está lista. Espere un momento.",
+    openInNewTab: "Arreglar Permisos (Nueva Pestaña)",
     error: "Error analizando. Inténtelo de nuevo.",
     retry: "Reintentar",
     guide: "Guía de aditivos",
@@ -248,41 +184,11 @@ const translations = {
     dir: "ltr" as const,
     font: "font-sans",
     alert: "Alerta",
-    premium: "Premium",
-    goPremium: "Pasar a Premium",
-    premiumFeatures: "Funciones Premium",
-    offlineMode: "Modo sin conexión",
-    noAds: "Sin anuncios",
-    fastSupport: "Soporte rápido",
-    plans: {
-      daily: "Diario",
-      monthly: "Mensual",
-      yearly: "Anual",
-      priceDay: "1$",
-      priceMonth: "5$",
-      priceYear: "$50"
-    },
-    adSpace: "Publicidad (Oculta para Pro)",
-    purchaseHistory: "Historial de compras",
-    noPurchases: "Sin compras previas",
-    date: "Fecha",
-    amount: "Monto",
-    plan: "Plan",
-    nearbyStores: "Tiendas cercanas",
     buyOnline: "Compra online",
-    findHalal: "Buscar tiendas Halal",
     onlineSites: "Comestibles online",
-    shopping: "Compras",
-    scanner: "Escáner",
-    noStores: "No se encontraron tiendas",
-    storeError: "Error al cargar el mapa",
-    premiumFeature: "Función Premium",
-    upgradeToUse: "Actualiza a Pro para acceder al mapa de tiendas cercanas y búsqueda inteligente."
+    scanner: "Escáner"
   }
 };
-
-const MAPS_API_KEY = process.env.GOOGLE_MAPS_PLATFORM_KEY || "";
-const hasValidMapsKey = Boolean(MAPS_API_KEY);
 
 const ONLINE_STORES = [
   { name: "MyHalalShop", url: "https://myhalalshop.com", desc: "Premium Halal Groceries", icon: "🌐" },
@@ -292,213 +198,18 @@ const ONLINE_STORES = [
   { name: "Uber Eats", url: "https://ubereats.com", desc: "Order from local Halal restaurants", icon: "🍔" }
 ];
 
-function StoreMarker(props: { place: any, key?: any }) {
-  const { place } = props;
-  const [markerRef, marker] = useAdvancedMarkerRef();
-  const [open, setOpen] = useState(false);
-
-  return (
-    <>
-      <AdvancedMarker ref={markerRef} position={place.geometry.location} onClick={() => setOpen(true)}>
-        <div className="bg-emerald-500 p-1 rounded-full border-2 border-white shadow-xl">
-          <ShoppingBag className="w-4 h-4 text-white" />
-        </div>
-      </AdvancedMarker>
-      {open && (
-        <InfoWindow anchor={marker} onCloseClick={() => setOpen(false)}>
-          <div className="p-2 min-w-[150px] text-gray-900">
-            <h4 className="font-bold text-sm">{place.name}</h4>
-            <p className="text-[10px] text-gray-500 mb-2">{place.vicinity}</p>
-            {place.rating && (
-                <div className="flex items-center gap-1 mb-2">
-                    <Star className="w-3 h-3 text-amber-500 fill-current" />
-                    <span className="text-xs font-bold">{place.rating}</span>
-                </div>
-            )}
-            <a 
-              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.name + ' ' + place.vicinity)}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center justify-center gap-2 bg-emerald-500 text-white py-1.5 rounded-lg text-xs font-bold hover:bg-emerald-600 transition-colors"
-            >
-              <Navigation className="w-3 h-3" />
-              Direction
-            </a>
-          </div>
-        </InfoWindow>
-      )}
-    </>
-  );
-}
-
-function StoreLocator({ lang, isSubscribed }: { lang: Language, isSubscribed: boolean }) {
-  const [stores, setStores] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [userLocation, setUserLocation] = useState<{ lat: number, lng: number } | null>(null);
-  const [searchTerm, setSearchTerm] = useState(lang === 'ar' ? 'متجر طعام حلال' : 'halal food grocery');
-  const t = translations[lang];
-
-  useEffect(() => {
-    if ("geolocation" in navigator) {
-      navigator.geolocation.getCurrentPosition((pos) => {
-        setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-      }, (err) => {
-        console.error("Geolocation error:", err);
-        setLoading(false);
-      });
-    } else {
-      setLoading(false);
-    }
-  }, []);
-
-  const searchStores = useCallback((map: google.maps.Map, location: { lat: number, lng: number }, query: string) => {
-    setLoading(true);
-    const service = new google.maps.places.PlacesService(map);
-    const request = {
-      location,
-      radius: 5000,
-      keyword: query
-    };
-
-    service.nearbySearch(request, (results, status) => {
-      if (status === google.maps.places.PlacesServiceStatus.OK && results) {
-        setStores(results);
-      } else {
-        setStores([]);
-      }
-      setLoading(false);
-    });
-  }, []);
-
-  const handleMapLoad = useCallback((map: google.maps.Map) => {
-    if (!userLocation) return;
-    searchStores(map, userLocation, searchTerm);
-  }, [userLocation, searchTerm, searchStores]);
-
-  return (
-    <div className="w-full h-full flex flex-col">
-      <div className="flex-1 min-h-0 relative">
-        <APIProvider apiKey={MAPS_API_KEY}>
-          <Map
-            defaultCenter={userLocation || { lat: 48.8566, lng: 2.3522 }} // Default Paris
-            defaultZoom={13}
-            mapId="STORE_LOCATOR_MAP"
-            onIsIdle={() => {}} 
-            onTilesLoaded={() => {}}
-            onCenterChanged={() => {}}
-            onBoundsChanged={() => {}}
-            onZoomChanged={() => {}}
-            style={{ width: '100%', height: '100%' }}
-            internalUsageAttributionIds={['gmp_mcp_codeassist_v1_aistudio']}
-          >
-            {userLocation && (
-              <AdvancedMarker position={userLocation}>
-                <div className="w-4 h-4 bg-blue-500 rounded-full border-2 border-white shadow-lg animate-pulse" />
-              </AdvancedMarker>
-            )}
-            {stores.map((store, i) => (
-              <StoreMarker key={i} place={store} />
-            ))}
-            <MapLoader onMapEnter={handleMapLoad} />
-          </Map>
-        </APIProvider>
-      </div>
-      
-      <div className="bg-[#16171A] p-4 max-h-[40vh] overflow-y-auto border-t border-white/5">
-        <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-bold text-emerald-500 uppercase tracking-widest flex items-center gap-2">
-                <MapPin className="w-4 h-4" />
-                {t.nearbyStores}
-            </h3>
-            {!isSubscribed && (
-                <div className="bg-amber-500/10 text-amber-500 text-[10px] font-bold px-2 py-1 rounded-lg border border-amber-500/20">
-                    SENSITIVE SEARCH (PRO)
-                </div>
-            )}
-        </div>
-
-        <div className="flex gap-2 mb-4">
-            <input 
-                type="text" 
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder={lang === 'ar' ? 'بحث عن متاجر...' : 'Search stores...'}
-                className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-emerald-500 transition-colors"
-                onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                        // Trigger search would happen through handleMapLoad if we had a map ref
-                        // For now we rely on the searchTerm state being used in the effect/callback
-                    }
-                }}
-            />
-            {/* If we had a way to trigger search manually we would add a button here */}
-        </div>
-        <div className="space-y-3">
-          {loading ? (
-            <div className="flex justify-center p-8">
-              <RefreshCw className="w-6 h-6 animate-spin text-emerald-500" />
-            </div>
-          ) : stores.length > 0 ? (
-            stores.map((store, i) => (
-              <div key={i} className="flex items-center justify-between p-3 bg-white/5 rounded-xl border border-white/5">
-                <div className="flex-1">
-                  <p className="text-sm font-bold truncate">{store.name}</p>
-                  <p className="text-[10px] text-gray-500 truncate">{store.vicinity}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                    {store.rating && (
-                        <div className="flex items-center gap-0.5 bg-amber-500/10 px-2 py-0.5 rounded-full">
-                            <Star className="w-3 h-3 text-amber-500 fill-current" />
-                            <span className="text-[10px] font-bold text-amber-500">{store.rating}</span>
-                        </div>
-                    )}
-                    <button 
-                        onClick={() => {
-                             window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(store.name + ' ' + store.vicinity)}`, '_blank');
-                        }}
-                        className="p-2 bg-emerald-500/10 rounded-lg"
-                    >
-                        <Navigation className="w-4 h-4 text-emerald-500" />
-                    </button>
-                </div>
-              </div>
-            ))
-          ) : (
-            <p className="text-center text-gray-500 py-4 text-xs">{t.noStores}</p>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function MapLoader({ onMapEnter }: { onMapEnter: (map: google.maps.Map) => void }) {
-  return <MapInternals onMapReady={onMapEnter} />;
-}
-
-function MapInternals({ onMapReady }: { onMapReady: (map: google.maps.Map) => void }) {
-  const map = useMap();
-  useEffect(() => {
-    if (map) onMapReady(map);
-  }, [map, onMapReady]);
-  return null;
-}
-
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(() => localStorage.getItem('halalscan_logged_in') === 'true');
-  const [isPayPalAuthenticated, setIsPayPalAuthenticated] = useState(() => localStorage.getItem('halalscan_paypal_auth') === 'true');
-  const [hasUsedTrial, setHasUsedTrial] = useState(() => localStorage.getItem('halalscan_trial_used') === 'true');
+  const [unlimitedUntil, setUnlimitedUntil] = useState<number>(() => Number(localStorage.getItem('halalscan_unlimited_until')) || 0);
+  const [adsWatched, setAdsWatched] = useState(0);
+  const [targetAds, setTargetAds] = useState<number | null>(null);
+  const [showAdPortal, setShowAdPortal] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(0);
   const [loginMethod, setLoginMethod] = useState<'email' | 'phone'>('email');
   const [email, setEmail] = useState(() => localStorage.getItem('halalscan_email') || "");
   const [phone, setPhone] = useState(() => localStorage.getItem('halalscan_phone') || "");
   const [lang, setLang] = useState<Language>('ar');
   const [activeTab, setActiveTab] = useState<AppTab>('scanner');
-  const [subTier, setSubTier] = useState<SubscriptionTier>(() => (localStorage.getItem('halalscan_sub') as SubscriptionTier) || 'NONE');
-  const [purchaseHistory, setPurchaseHistory] = useState<Purchase[]>(() => JSON.parse(localStorage.getItem('halalscan_purchases') || '[]'));
-  const [showPricing, setShowPricing] = useState(false);
-  const [showHistory, setShowHistory] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState<{ id: SubscriptionTier, price: string } | null>(null);
-  const [promoCode, setPromoCode] = useState("");
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [result, setResult] = useState<ScanResult | null>(null);
@@ -518,18 +229,8 @@ export default function App() {
       noAccount: "ليس لديك حساب؟",
       createAccount: "أنشئ حساباً جديداً",
       secure: "نتائج مدعومة بالذكاء الاصطناعي",
-      noCardNeeded: "لا حاجة لبطاقة بنكية - متوفر عبر الرصيد",
-      payBalance: "دفع عبر رصيد PayPal",
-      haveCode: "لديك كود تفعيل؟",
-      enterCode: "أدخل الكود هنا",
-      redeem: "تفعيل الكود",
-      codeSuccess: "تم تفعيل البريميوم بنجاح!",
       logout: "تسجيل الخروج",
-      linkPayPal: "يجب تسجيل الدخول بـ PayPal للاشتراك",
-      payPalLoginBtn: "تسجيل الدخول عبر PayPal",
-      freeTrial: "تجربة مجانية لمدة 3 أيام",
-      startTrial: "ابدأ تجربتك المجانية الآن",
-      trialDisclaimer: "استمتع بمزايا Pro مجاناً، لا يلزم الدفع الآن."
+      googleLogin: "تسجيل الدخول عبر Google",
     },
     en: {
       welcome: "Welcome to HalalScan",
@@ -540,18 +241,8 @@ export default function App() {
       noAccount: "Don't have an account?",
       createAccount: "Create one",
       secure: "AI Driven Results",
-      noCardNeeded: "No bank card required - Balance supported",
-      payBalance: "Pay with PayPal Balance",
-      haveCode: "Have a promo code?",
-      enterCode: "Enter code here",
-      redeem: "Redeem Code",
-      codeSuccess: "Premium activated successfully!",
       logout: "Logout",
-      linkPayPal: "PayPal login is required to subscribe",
-      payPalLoginBtn: "Login with PayPal",
-      freeTrial: "3-Day Free Trial",
-      startTrial: "Start Your Free Trial",
-      trialDisclaimer: "Enjoy Pro features for free, no payment needed now."
+      googleLogin: "Login with Google",
     },
     fr: {
       welcome: "Bienvenue sur HalalScan",
@@ -562,18 +253,8 @@ export default function App() {
       noAccount: "Pas de compte ?",
       createAccount: "Créer un compte",
       secure: "Résultats par IA",
-      noCardNeeded: "Pas de carte requise",
-      payBalance: "Payer avec PayPal",
-      haveCode: "Code promo ?",
-      enterCode: "Entrez le code",
-      redeem: "Activer",
-      codeSuccess: "Premium activé !",
       logout: "Déconnexion",
-      linkPayPal: "Connexion PayPal requise",
-      payPalLoginBtn: "Se connecter avec PayPal",
-      freeTrial: "Essai gratuit de 3 jours",
-      startTrial: "Commencer l'essai",
-      trialDisclaimer: "Profitez gratuitement."
+      googleLogin: "Se connecter avec Google",
     },
     es: {
       welcome: "Bienvenido a HalalScan",
@@ -584,22 +265,41 @@ export default function App() {
       noAccount: "¿No tienes cuenta?",
       createAccount: "Crear una",
       secure: "Resultados por IA",
-      noCardNeeded: "Sin tarjeta bancaria",
-      payBalance: "Pagar con PayPal",
-      haveCode: "¿Tienes un código?",
-      enterCode: "Ingresa el código",
-      redeem: "Canjear",
-      codeSuccess: "¡Premium activado!",
       logout: "Cerrar sesión",
-      linkPayPal: "Inicia sesión con PayPal",
-      payPalLoginBtn: "Iniciar sesión con PayPal",
-      freeTrial: "Prueba gratuita de 3 días",
-      startTrial: "Iniciar prueba",
-      trialDisclaimer: "Disfruta Pro gratis."
+      googleLogin: "Iniciar sesión con Google",
     }
   };
 
   const lt = loginTranslations[lang];
+
+  const isUnlimited = timeLeft > 0;
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const now = Date.now();
+      const remaining = Math.max(0, Math.floor((unlimitedUntil - now) / 1000));
+      setTimeLeft(remaining);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [unlimitedUntil]);
+
+  const handleWatchAd = () => {
+    if (!targetAds) return;
+    
+    // Simulate watching an ad
+    if (adsWatched + 1 >= targetAds) {
+      const duration = targetAds === 3 ? 15 * 60 * 1000 : 60 * 60 * 1000;
+      const newUntil = (unlimitedUntil > Date.now() ? unlimitedUntil : Date.now()) + duration;
+      setUnlimitedUntil(newUntil);
+      localStorage.setItem('halalscan_unlimited_until', newUntil.toString());
+      setAdsWatched(0);
+      setTargetAds(null);
+      setShowAdPortal(false);
+      alert(lang === 'ar' ? 'تم تفعيل المسح اللانهائي بنجاح!' : 'Unlimited scans activated!');
+    } else {
+      setAdsWatched(prev => prev + 1);
+    }
+  };
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -622,106 +322,117 @@ export default function App() {
     }
   };
 
-  const handlePayPalLogin = () => {
-    // Simulate PayPal OAuth
-    setIsPayPalAuthenticated(true);
-    localStorage.setItem('halalscan_paypal_auth', 'true');
-  };
-  
-  const handleStartTrial = () => {
-    updateSubscription('YEARLY', '$0.00 (Trial)'); 
-    setHasUsedTrial(true);
-    localStorage.setItem('halalscan_trial_used', 'true');
-    alert(lt.codeSuccess);
-  };
-
   const handleLogout = () => {
     setIsLoggedIn(false);
-    setIsPayPalAuthenticated(false);
-    setSubTier('NONE');
     localStorage.removeItem('halalscan_logged_in');
     localStorage.removeItem('halalscan_email');
     localStorage.removeItem('halalscan_phone');
-    localStorage.removeItem('halalscan_sub');
-    localStorage.removeItem('halalscan_paypal_auth');
-    localStorage.removeItem('halalscan_purchases'); // Clear history on logout for privacy
-    setPurchaseHistory([]);
     if (stream) {
       stream.getTracks().forEach(track => track.stop());
     }
   };
 
-  const handleRedeem = () => {
-    if (promoCode.toUpperCase() === "FREE" || promoCode.toUpperCase() === "HALAL") {
-      updateSubscription('YEARLY', '$0.00 (Promo)');
-      alert(lt.codeSuccess);
-      setPromoCode("");
-    } else {
-      alert(lang === 'ar' ? 'كود غير صحيح' : 'Invalid code');
-    }
-  };
-
-  const updateSubscription = (tier: SubscriptionTier, amount: string = "0.00") => {
-    const localeMap = {
-      ar: 'ar-EG',
-      en: 'en-US',
-      fr: 'fr-FR',
-      es: 'es-ES'
-    };
-
-    const newPurchase: Purchase = {
-      id: Math.random().toString(36).substr(2, 9),
-      date: new Date().toLocaleDateString(localeMap[lang], { year: 'numeric', month: 'short', day: 'numeric' }),
-      tier,
-      amount
-    };
-    
-    const updatedHistory = [newPurchase, ...purchaseHistory];
-    setPurchaseHistory(updatedHistory);
-    localStorage.setItem('halalscan_purchases', JSON.stringify(updatedHistory));
-    
-    setSubTier(tier);
-    localStorage.setItem('halalscan_sub', tier);
-    setShowPricing(false);
-    setSelectedPlan(null);
-  };
-
-  const isSubscribed = subTier !== 'NONE';
-
   // Initialize Camera
   const startCamera = async () => {
-    if (!isLoggedIn) return;
+    if (!isLoggedIn || activeTab !== 'scanner') return;
+    
     try {
       if (stream) {
         stream.getTracks().forEach(track => track.stop());
       }
-      const newStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' },
-        audio: false
-      });
+
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error("MediaDevices API not supported");
+      }
+
+      // Try with environment facing mode first
+      let newStream;
+      try {
+        newStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: 'environment' } },
+          audio: false
+        });
+      } catch (e) {
+        console.warn("Failed with facingMode: environment, trying basic video", e);
+        // Fallback to basic video if ideal environment fails
+        newStream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: false
+        });
+      }
+
       setStream(newStream);
       if (videoRef.current) {
         videoRef.current.srcObject = newStream;
       }
       setError(null);
-    } catch (err) {
-      console.error("Camera Error:", err);
-      setError(t.cameraError);
+    } catch (err: any) {
+      console.error("Camera Error details:", err);
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError' || err.message?.includes('Permission denied')) {
+        setError(t.cameraError);
+      } else if (err.name === 'NotFoundError') {
+        setError(lang === 'ar' ? 'لم يتم العثور على كاميرا.' : 'No camera found.');
+      } else {
+        setError(lang === 'ar' ? `خطأ الكاميرا: ${err.message || 'غير معروف'}` : `Camera error: ${err.message || 'unknown'}`);
+      }
     }
   };
 
   useEffect(() => {
-    startCamera();
-    return () => {
+    if (activeTab === 'scanner') {
+      startCamera();
+    } else {
       if (stream) {
         stream.getTracks().forEach(track => track.stop());
+        setStream(null);
       }
-    };
-  }, [lang, isLoggedIn]);
+    }
+  }, [lang, isLoggedIn, activeTab]);
 
   const toggleLanguage = () => {
     setLang(prev => prev === 'ar' ? 'en' : 'ar');
   };
+
+  const handleGoogleLogin = async () => {
+    try {
+      const response = await fetch('/api/auth/google/url');
+      if (!response.ok) throw new Error('Failed to fetch auth URL');
+      const { url } = await response.json();
+      
+      const width = 500;
+      const height = 600;
+      const left = window.screen.width / 2 - width / 2;
+      const top = window.screen.height / 2 - height / 2;
+      
+      window.open(
+        url,
+        'google_login',
+        `width=${width},height=${height},left=${left},top=${top}`
+      );
+    } catch (err) {
+      console.error("Google Login Error:", err);
+      setError(lang === 'ar' ? "فشل تسجيل الدخول عبر Google" : "Google Login failed");
+    }
+  };
+
+  useEffect(() => {
+    const handleAuthMessage = (event: MessageEvent) => {
+      // Basic origin check for local/production consistency
+      if (!event.origin.includes('run.app') && !event.origin.includes('localhost')) return;
+      
+      if (event.data?.type === 'OAUTH_AUTH_SUCCESS') {
+        const userData = event.data.user;
+        console.log("Logged in user:", userData);
+        localStorage.setItem('halalscan_logged_in', 'true');
+        localStorage.setItem('halalscan_user_email', userData.email || '');
+        setIsLoggedIn(true);
+        if (userData.email) setEmail(userData.email);
+      }
+    };
+
+    window.addEventListener('message', handleAuthMessage);
+    return () => window.removeEventListener('message', handleAuthMessage);
+  }, []);
 
   const langNames = {
     ar: 'Arabic',
@@ -732,20 +443,93 @@ export default function App() {
 
   const captureAndAnalyze = async () => {
     if (!videoRef.current || !canvasRef.current) return;
+    
+    if (!isUnlimited) {
+      setShowAdPortal(true);
+      return;
+    }
 
     setIsScanning(true);
     setResult(null);
     setError(null);
 
     try {
-      const canvas = canvasRef.current;
       const video = videoRef.current;
+      if (video.videoWidth === 0 || video.videoHeight === 0) {
+        setError(t.cameraNotReady);
+        setIsScanning(false);
+        return;
+      }
+      const base64Image = await resizeAndCompressImage(video);
+      await performAIAnalysis(base64Image);
+    } catch (err) {
+      console.error("Capture Error:", err);
+      setError(t.error);
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!isUnlimited) {
+      setShowAdPortal(true);
+      return;
+    }
+
+    setIsScanning(true);
+    setResult(null);
+    setError(null);
+
+    try {
+      const img = new Image();
+      const objectUrl = URL.createObjectURL(file);
       
-      // Resize logic to prevent "Unable to process input image" (400) errors
-      const maxDimension = 800; // Smaller dimension
-      let width = video.videoWidth;
-      let height = video.videoHeight;
-      
+      const base64Image = await new Promise<string>((resolve, reject) => {
+        img.onload = async () => {
+          try {
+            const base64 = await resizeAndCompressImage(img);
+            URL.revokeObjectURL(objectUrl);
+            resolve(base64);
+          } catch (err) {
+            reject(err);
+          }
+        };
+        img.onerror = () => reject(new Error("Failed to load image file"));
+        img.src = objectUrl;
+      });
+
+      await performAIAnalysis(base64Image);
+    } catch (err) {
+      console.error("File Upload Error:", err);
+      setError(t.error);
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
+  const resizeAndCompressImage = (source: HTMLVideoElement | HTMLImageElement): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const canvas = document.createElement('canvas');
+      const maxDimension = 800; // Reduced for better stability
+      let width, height;
+
+      if (source instanceof HTMLVideoElement) {
+        width = source.videoWidth;
+        height = source.videoHeight;
+      } else {
+        width = source.width;
+        height = source.height;
+      }
+
+      // Check if dimensions are valid to prevent 400 errors
+      if (!width || !height) {
+        reject(new Error(lang === 'ar' ? "أبعاد الصورة غير صالحة" : "Invalid image dimensions"));
+        return;
+      }
+
       if (width > height) {
         if (width > maxDimension) {
           height *= maxDimension / width;
@@ -761,67 +545,42 @@ export default function App() {
       canvas.width = width;
       canvas.height = height;
       const ctx = canvas.getContext('2d');
-      if (!ctx) throw new Error("Canvas context failed");
-      
-      ctx.drawImage(video, 0, 0, width, height);
-      // Use PNG for better compatibility or JPEG at lower quality
-      const base64Image = canvas.toDataURL('image/png').split(',')[1];
+      if (!ctx) {
+        reject(new Error("Canvas context failed"));
+        return;
+      }
 
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      
-      const prompt = `
-        Analyze the food ingredients list in this image.
-        Determine if the product is:
-        1. "HALAL": All ingredients are halal.
-        2. "HARAM": Contains prohibited ingredients (pork-derived, non-allowed alcohol, non-slaughtered animals).
-        3. "MASHBOOH": Contains doubtful ingredients (like E471 without a stated source).
+      ctx.drawImage(source, 0, 0, width, height);
+      // Use lower quality (0.6) and ensure it's not too huge for the model
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
+      resolve(dataUrl.split(',')[1]);
+    });
+  };
 
-        Output must be in JSON format in the language: ${langNames[lang]}.
-        Schema:
-        {
-          "status": "HALAL" | "HARAM" | "MASHBOOH",
-          "productName": "Name of the product if found",
-          "ingredients": ["List of detected ingredients"],
-          "haramIngredients": ["List of suspicious or prohibited ingredients"],
-          "reasoning": "Detailed explanation of this classification",
-          "advice": "Consumer advice regarding this product"
-        }
-      `;
-
-      const response = await ai.models.generateContent({
-        model: AI_MODEL,
-        contents: [
-          {
-            parts: [
-              { text: prompt },
-              { inlineData: { mimeType: "image/png", data: base64Image } }
-            ]
-          }
-        ],
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              status: { type: Type.STRING },
-              productName: { type: Type.STRING },
-              ingredients: { type: Type.ARRAY, items: { type: Type.STRING } },
-              haramIngredients: { type: Type.ARRAY, items: { type: Type.STRING } },
-              reasoning: { type: Type.STRING },
-              advice: { type: Type.STRING }
-            },
-            required: ["status", "ingredients", "reasoning", "advice"]
-          }
-        }
+  const performAIAnalysis = async (base64Image: string) => {
+    try {
+      const response = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: base64Image, lang })
       });
 
-      const data = JSON.parse(response.text || '{}') as ScanResult;
+      if (!response.ok) {
+        const errorData = await response.json();
+        // Handle specific 400 errors from Gemini
+        if (response.status === 400) {
+          throw new Error(lang === 'ar' ? 'الصورة غير واضحة أو كبيرة جداً. يرجى المحاولة بصورة أصغر أو أوضح.' : 'Image unclear or too large. Please try a smaller or clearer photo.');
+        }
+        throw new Error(errorData.error || 'Analysis failed');
+      }
+
+      const data = await response.json() as ScanResult;
       setResult(data);
-    } catch (err) {
-      console.error("AI Analysis Error:", err);
-      setError(t.error);
-    } finally {
-      setIsScanning(false);
+    } catch (err: any) {
+      console.error("AI Analysis Fetch Error:", err);
+      // Fallback message if it's a generic failure
+      const msg = err.message || (lang === 'ar' ? 'فشل التحليل' : 'Analysis failed');
+      setError(msg);
     }
   };
 
@@ -852,13 +611,12 @@ export default function App() {
     }
   };
 
+  const openInNewTab = () => {
+    window.open(window.location.href, '_blank');
+  };
+
   return (
-    <PayPalScriptProvider options={{ 
-      "client-id": import.meta.env.VITE_PAYPAL_CLIENT_ID || "sb", 
-      currency: "USD",
-      intent: "capture"
-    }}>
-      <div className={cn("min-h-screen bg-[#0A0B0D] text-white flex flex-col selection:bg-emerald-500/30 overflow-hidden", t.font)} dir={t.dir}>
+    <div className={cn("min-h-screen bg-[#0A0B0D] text-white flex flex-col selection:bg-emerald-500/30 overflow-hidden", t.font)} dir={t.dir}>
       
       <AnimatePresence mode="wait">
         {!isLoggedIn ? (
@@ -882,11 +640,6 @@ export default function App() {
                 <div className="flex justify-between items-center mb-8 border-b border-white/5 pb-4">
                   <div className="flex flex-col">
                     <h2 className="text-xl font-bold">{lt.welcome}</h2>
-                    {!hasUsedTrial && (
-                      <span className="text-[10px] text-emerald-500 font-bold uppercase tracking-wider bg-emerald-500/10 self-start px-2 py-0.5 rounded-full mt-1">
-                        {lt.freeTrial}
-                      </span>
-                    )}
                   </div>
                   <div className="flex bg-white/5 p-1 rounded-xl border border-white/10">
                     {(['ar', 'en', 'fr', 'es'] as Language[]).map((l) => (
@@ -972,6 +725,27 @@ export default function App() {
                   </button>
                 </form>
 
+                <div className="mt-4 flex flex-col gap-3">
+                  <div className="relative flex items-center py-2">
+                    <div className="flex-grow border-t border-white/5"></div>
+                    <span className="flex-shrink mx-4 text-[10px] text-gray-500 font-bold uppercase tracking-widest">{lang === 'ar' ? 'أو' : 'OR'}</span>
+                    <div className="flex-grow border-t border-white/5"></div>
+                  </div>
+
+                  <button 
+                    onClick={handleGoogleLogin}
+                    className="w-full bg-white text-black py-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all hover:bg-gray-100 active:scale-[0.98]"
+                  >
+                    <svg className="w-5 h-5" viewBox="0 0 24 24">
+                      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+                      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                    </svg>
+                    <span>{lt.googleLogin}</span>
+                  </button>
+                </div>
+
                 <div className="mt-8 pt-6 border-t border-white/5 flex flex-col items-center gap-4">
                   <p className="text-xs text-gray-500">
                     {lt.noAccount} <button className="text-emerald-500 font-bold hover:underline">{lt.createAccount}</button>
@@ -1003,13 +777,20 @@ export default function App() {
           </div>
         </div>
         <div className="flex gap-2">
-          {!isSubscribed && (
+          {isUnlimited ? (
+            <div className="flex items-center gap-2 bg-emerald-500/10 px-3 rounded-xl border border-emerald-500/20">
+              <Star className="w-3 h-3 text-emerald-500 fill-current animate-pulse" />
+              <span className="text-[10px] font-mono font-bold text-emerald-500">
+                {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}
+              </span>
+            </div>
+          ) : (
             <button 
-              onClick={() => setShowPricing(true)}
+              onClick={() => setShowAdPortal(true)}
               className="p-2 hover:bg-emerald-500/10 rounded-full transition-all flex items-center gap-2 border border-emerald-500/20 px-3 bg-emerald-500/5 text-emerald-500"
             >
-              <RefreshCw className="w-4 h-4" />
-              <span className="text-[10px] font-bold uppercase tracking-wider">{t.goPremium}</span>
+              <Star className="w-4 h-4" />
+              <span className="text-[10px] font-bold uppercase tracking-wider">{t.boost}</span>
             </button>
           )}
           <div className="flex bg-white/5 p-1 rounded-xl border border-white/10">
@@ -1026,15 +807,6 @@ export default function App() {
               </button>
             ))}
           </div>
-          <button 
-            onClick={() => setShowHistory(true)}
-            className="p-2 hover:bg-white/5 rounded-full transition-colors relative"
-          >
-            <History className="w-5 h-5 text-gray-400" />
-            {purchaseHistory.length > 0 && (
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-emerald-500 rounded-full border border-[#0A0B0D]" />
-            )}
-          </button>
           <button 
             onClick={handleLogout}
             className="p-2 hover:bg-rose-500/10 rounded-full transition-all flex items-center gap-2 border border-rose-500/20 px-3 bg-rose-500/5 group"
@@ -1101,54 +873,81 @@ export default function App() {
                 </AnimatePresence>
 
                 {error && (
-                  <div className="absolute bottom-4 left-4 right-4 bg-rose-500/90 backdrop-blur-md p-4 rounded-2xl flex items-start gap-3 border border-rose-400/20 z-40">
-                    <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" />
-                    <div className={lang === 'ar' ? 'text-right' : 'text-left'}>
-                      <p className="text-sm font-bold">{t.alert}</p>
-                      <p className="text-xs opacity-90">{error}</p>
-                      <button onClick={startCamera} className="mt-2 text-[10px] underline uppercase font-bold tracking-widest">{t.retry}</button>
+                  <div className="absolute bottom-4 left-4 right-4 bg-rose-500/90 backdrop-blur-md p-4 rounded-2xl flex flex-col gap-3 border border-rose-400/20 z-40">
+                    <div className="flex items-start gap-3">
+                      <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                      <div className={lang === 'ar' ? 'text-right' : 'text-left'}>
+                        <p className="text-sm font-bold">{t.alert}</p>
+                        <p className="text-xs opacity-90 leading-tight">{error}</p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex gap-2">
+                       <button 
+                         onClick={startCamera} 
+                         className="flex-1 bg-white/20 hover:bg-white/30 py-2 rounded-xl text-[10px] uppercase font-bold tracking-widest transition-colors flex items-center justify-center gap-1"
+                       >
+                         <RefreshCw className="w-3 h-3" />
+                         {t.retry}
+                       </button>
+                       {error === t.cameraError && (
+                         <button 
+                           onClick={openInNewTab} 
+                           className="flex-1 bg-white text-rose-500 py-2 rounded-xl text-[10px] uppercase font-bold tracking-widest transition-colors flex items-center justify-center gap-1"
+                         >
+                           <ExternalLink className="w-3 h-3" />
+                           {t.openInNewTab}
+                         </button>
+                       )}
                     </div>
                   </div>
                 )}
               </div>
 
               <div className="w-full max-w-lg p-6 flex flex-col items-center gap-6">
-                <motion.button
-                  whileTap={{ scale: 0.95 }}
-                  onClick={captureAndAnalyze}
-                  disabled={isScanning}
-                  className={cn(
-                    "relative w-24 h-24 rounded-full flex items-center justify-center shadow-2xl transition-all duration-300",
-                    "before:absolute before:inset-0 before:rounded-full before:border-4 before:border-white/10",
-                    isScanning ? "bg-gray-800" : "bg-emerald-600 hover:bg-emerald-500"
-                  )}
-                >
-                  <Camera className="w-10 h-10 text-white" />
-                  <div className="absolute -inset-2 rounded-full border border-emerald-500/30 animate-pulse" />
-                </motion.button>
-              </div>
-            </motion.div>
-          )}
+                <div className="flex items-center gap-6">
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    className="hidden" 
+                    id="file-upload" 
+                    onChange={handleFileUpload}
+                  />
+                  <label 
+                    htmlFor="file-upload"
+                    className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center cursor-pointer hover:bg-white/10 transition-colors"
+                  >
+                    <BookOpen className="w-6 h-6 text-gray-400" />
+                  </label>
 
-          {activeTab === 'stores' && (
-            <motion.div 
-               key="stores-tab"
-               initial={{ opacity: 0, scale: 0.98 }}
-               animate={{ opacity: 1, scale: 1 }}
-               exit={{ opacity: 0, scale: 0.98 }}
-               className="flex-1 flex flex-col"
-            >
-              {hasValidMapsKey ? (
-                <StoreLocator lang={lang} isSubscribed={isSubscribed} />
-              ) : (
-                <div className="flex-1 flex flex-col items-center justify-center p-12 text-center">
-                   <div className="w-20 h-20 bg-rose-500/10 rounded-full flex items-center justify-center mb-6">
-                      <MapPin className="text-rose-500 w-10 h-10" />
-                   </div>
-                   <h2 className="text-xl font-bold mb-4">{t.storeError}</h2>
-                   <p className="text-gray-400 text-sm">{lang === 'ar' ? 'يرجى تفعيل مفتاح خرائط جوجل في المتغيرات البيئية' : 'Please enable Google Maps API key in secrets'}</p>
+                  <motion.button
+                    whileTap={{ scale: 0.95 }}
+                    onClick={captureAndAnalyze}
+                    disabled={isScanning}
+                    className={cn(
+                      "relative w-24 h-24 rounded-full flex items-center justify-center shadow-2xl transition-all duration-300",
+                      "before:absolute before:inset-0 before:rounded-full before:border-4 before:border-white/10",
+                      isScanning ? "bg-gray-800" : "bg-emerald-600 hover:bg-emerald-500"
+                    )}
+                  >
+                    <Camera className="w-10 h-10 text-white" />
+                    <div className="absolute -inset-2 rounded-full border border-emerald-500/30 animate-pulse" />
+                  </motion.button>
+
+                  <button 
+                    onClick={() => document.getElementById('file-upload')?.click()}
+                    className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center cursor-pointer hover:bg-white/10 transition-colors"
+                  >
+                    <ShoppingBag className="w-6 h-6 text-gray-400" />
+                  </button>
                 </div>
-              )}
+                
+                <p className="text-[10px] text-gray-500 uppercase tracking-widest font-bold">
+                  {lang === 'ar' ? 'أو استخدم الصور المحفوظة' : 'Or use a saved photo'}
+                </p>
+                
+                <AdBanner slot="scanner_top" />
+              </div>
             </motion.div>
           )}
 
@@ -1185,6 +984,8 @@ export default function App() {
                     <ExternalLink className="w-5 h-5 text-gray-600 group-hover:text-blue-500 transition-colors" />
                   </button>
                 ))}
+                
+                <AdBanner slot="online_stores_bottom" />
               </div>
             </motion.div>
           )}
@@ -1195,7 +996,6 @@ export default function App() {
            <div className="bg-black/60 backdrop-blur-xl border border-white/10 p-2 rounded-3xl flex gap-2 shadow-2xl">
               {[
                 { id: 'scanner', icon: Scan, label: t.scanner },
-                { id: 'stores', icon: MapPin, label: t.shopping },
                 { id: 'online', icon: ShoppingBag, label: t.buyOnline }
               ].map((tab) => (
                 <button 
@@ -1217,80 +1017,6 @@ export default function App() {
       </main>
 
       </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Purchase History Modal */}
-      <AnimatePresence>
-        {showHistory && (
-          <>
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowHistory(false)}
-              className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100]"
-            />
-            <motion.div 
-              initial={{ y: "100%" }}
-              animate={{ y: 0 }}
-              exit={{ y: "100%" }}
-              className="fixed bottom-0 left-0 right-0 max-h-[85vh] bg-[#0A0B0D] border-t border-white/10 rounded-t-[40px] z-[101] overflow-hidden flex flex-col"
-            >
-              <div className="p-6 flex items-center justify-between border-b border-white/5 bg-white/2 backdrop-blur-xl">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center">
-                    <History className="w-6 h-6 text-emerald-500" />
-                  </div>
-                  <h2 className="text-xl font-bold">{t.purchaseHistory}</h2>
-                </div>
-                <button 
-                  onClick={() => setShowHistory(false)}
-                  className="w-10 h-10 bg-white/5 rounded-full flex items-center justify-center text-gray-400 hover:text-white transition-colors"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <div className="flex-1 overflow-y-auto p-6">
-                {purchaseHistory.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-20 text-center space-y-4">
-                    <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center opacity-20">
-                      <History className="w-8 h-8" />
-                    </div>
-                    <p className="text-gray-500 font-medium">{t.noPurchases}</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-3 px-4 text-[10px] text-gray-500 uppercase tracking-widest font-bold mb-2">
-                       <span>{t.date}</span>
-                       <span className="text-center">{t.plan}</span>
-                       <span className="text-left">{t.amount}</span>
-                    </div>
-                    {purchaseHistory.map((purchase) => (
-                      <div 
-                        key={purchase.id}
-                        className="bg-white/5 border border-white/5 p-4 rounded-2xl flex items-center justify-between group hover:border-emerald-500/20 transition-all"
-                      >
-                         <div className="flex flex-col">
-                            <span className="text-sm font-bold text-white mb-0.5">{purchase.date}</span>
-                            <span className="text-[10px] text-gray-600 font-mono uppercase tracking-tighter">ID: {purchase.id}</span>
-                         </div>
-                         <div className="bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20">
-                            <span className="text-xs font-bold text-emerald-500 uppercase">
-                              {translations[lang].plans[purchase.tier.toLowerCase() as keyof typeof translations.ar.plans]}
-                            </span>
-                         </div>
-                         <div className="text-right">
-                            <span className="text-sm font-black text-white">{purchase.amount}</span>
-                         </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </motion.div>
-          </>
         )}
       </AnimatePresence>
 
@@ -1332,6 +1058,9 @@ export default function App() {
                   <p className="text-lg leading-relaxed text-gray-200">
                     {result.reasoning}
                   </p>
+                  <div className="mt-4">
+                    <AdBanner slot="results_middle" format="rectangle" />
+                  </div>
                 </section>
 
                 {/* Advice Section */}
@@ -1347,7 +1076,7 @@ export default function App() {
 
                 {/* Ingredients Lists */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {result.haramIngredients.length > 0 && (
+                  {result.haramIngredients && result.haramIngredients.length > 0 && (
                     <section>
                       <h3 className="text-sm font-bold text-rose-500 uppercase tracking-widest mb-4 flex items-center gap-2">
                         <XCircle className="w-4 h-4" />
@@ -1366,7 +1095,7 @@ export default function App() {
                   <section>
                     <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4">{t.allIngs}</h3>
                     <div className="flex flex-wrap gap-2">
-                      {result.ingredients.map((ing, i) => (
+                      {result.ingredients?.map((ing, i) => (
                         <span key={i} className="bg-white/5 text-gray-400 px-3 py-1.5 rounded-xl text-xs border border-white/5">
                           {ing}
                         </span>
@@ -1387,219 +1116,90 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Ad Space (Only for non-subscribers) */}
-      {!isSubscribed && (
-        <div className="mx-4 mb-4 p-3 bg-white/5 border border-white/5 rounded-xl text-center group cursor-pointer hover:bg-white/10 transition-colors">
-          <p className="text-[10px] text-gray-600 uppercase tracking-widest">{t.adSpace}</p>
-          <div className="h-10 flex items-center justify-center opacity-20 group-hover:opacity-40 transition-opacity">
-            <span className="text-xs font-mono">AD_BANNER_728x90</span>
-          </div>
-        </div>
-      )}
-
       {/* Footer Branding */}
       <footer className="p-4 text-center text-gray-600 font-mono text-[10px] uppercase tracking-[4px]">
-        Protected by HalalScan AI © 2026 {isSubscribed && `• ${subTier} PRO`}
+        Protected by Simple Halal Check AI © 2026 {isUnlimited && `• UNLIMITED`}
       </footer>
 
-      {/* Pricing Modal */}
+      {/* Ad Reward Portal */}
       <AnimatePresence>
-        {showPricing && (
+        {showAdPortal && (
           <>
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              onClick={() => setShowPricing(false)}
+              onClick={() => {
+                if (!targetAds) setShowAdPortal(false);
+              }}
               className="fixed inset-0 bg-black/90 backdrop-blur-md z-[100]"
             />
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="fixed inset-0 m-auto w-full max-w-md h-fit bg-[#16171A] border border-white/10 rounded-[40px] z-[110] p-8 overflow-hidden"
+              className="fixed inset-0 m-auto w-full max-w-sm h-fit bg-[#16171A] border border-white/10 rounded-[40px] z-[110] p-8 overflow-hidden"
             >
               <button 
-                onClick={() => setShowPricing(false)}
+                onClick={() => {
+                  setShowAdPortal(false);
+                  setTargetAds(null);
+                  setAdsWatched(0);
+                }}
                 className="absolute top-6 left-6 p-2 bg-white/5 rounded-full hover:bg-white/10 transition-colors"
+                dir="ltr"
               >
                 <X className="w-5 h-5 text-gray-400" />
               </button>
 
               <div className="text-center mt-4">
                 <div className="w-16 h-16 bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-2xl mx-auto flex items-center justify-center shadow-2xl shadow-emerald-500/20 mb-6">
-                  <RefreshCw className="w-8 h-8 text-white" />
+                  <Star className="w-8 h-8 text-white fill-current" />
                 </div>
-                <h2 className="text-2xl font-bold mb-2">{t.premiumFeatures}</h2>
-                <div className="flex flex-col gap-3 mt-6">
-                   <div className="flex items-center gap-3 bg-white/5 p-4 rounded-2xl border border-white/5">
-                      <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                      </div>
-                      <span className="text-sm font-medium">{t.noAds}</span>
-                   </div>
-                   <div className="flex items-center gap-3 bg-white/5 p-4 rounded-2xl border border-white/5">
-                      <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                        <Languages className="w-4 h-4 text-blue-500" />
-                      </div>
-                      <span className="text-sm font-medium">{t.offlineMode}</span>
-                   </div>
-                </div>
-              </div>
+                <h2 className="text-2xl font-bold mb-2">{t.unlimitedTitle}</h2>
+                <p className="text-sm text-gray-500 mb-8">{t.watchToActivate}</p>
 
-              <div className="grid grid-cols-1 gap-4 mt-8">
-                <AnimatePresence mode="wait">
-                  {!selectedPlan ? (
-                    <motion.div 
-                      key="plans"
-                      initial={{ opacity: 0, x: 20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: -20 }}
-                      className="space-y-4"
+                {!targetAds ? (
+                  <div className="space-y-4">
+                    <button 
+                      onClick={() => setTargetAds(3)}
+                      className="w-full bg-white/5 border border-white/10 p-5 rounded-3xl flex items-center justify-between group hover:bg-emerald-500/10 hover:border-emerald-500/30 transition-all font-bold"
                     >
-                      {!hasUsedTrial && (
-                        <div className="bg-gradient-to-br from-emerald-500/20 to-emerald-700/20 border border-emerald-500/30 rounded-[32px] p-6 mb-6 relative overflow-hidden group">
-                           <div className="absolute top-0 right-0 p-3 bg-emerald-500 text-white text-[10px] font-bold uppercase tracking-tighter rounded-bl-xl shadow-lg">
-                              OFFER
-                           </div>
-                           <div className="relative z-10 flex flex-col items-center text-center">
-                              <div className="w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-emerald-500/20">
-                                 <Star className="text-white w-6 h-6 fill-current" />
-                              </div>
-                              <h3 className="text-xl font-bold mb-1">{lt.freeTrial}</h3>
-                              <p className="text-xs text-gray-400 mb-6 max-w-[200px]">{lt.trialDisclaimer}</p>
-                              <button 
-                                onClick={handleStartTrial}
-                                className="w-full bg-emerald-500 hover:bg-emerald-400 text-white py-3 rounded-2xl font-bold transition-all shadow-xl shadow-emerald-500/20 active:scale-[0.98]"
-                              >
-                                {lt.startTrial}
-                              </button>
-                           </div>
-                           <div className="absolute -bottom-4 -left-4 w-24 h-24 bg-emerald-500/10 blur-3xl rounded-full" />
-                        </div>
-                      )}
-
-                      {!isPayPalAuthenticated ? (
-                        <div className="bg-white/5 p-8 rounded-[32px] border border-white/10 text-center space-y-6">
-                           <div className="w-16 h-16 bg-[#0070BA]/20 rounded-2xl flex items-center justify-center mx-auto">
-                              <svg className="w-8 h-8 text-[#0070BA]" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96 0 1.1.9 2 2 2h12v-2H7.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63h7.45c.75 0 1.41-.41 1.75-1.03l3.58-6.49c.08-.14.12-.31.12-.48 0-.55-.45-1-1-1H5.21l-.94-2H1zm16 16c-1.1 0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2z"/>
-                              </svg>
-                           </div>
-                           <div className="space-y-2">
-                             <h3 className="text-xl font-bold">{lt.linkPayPal}</h3>
-                             <p className="text-sm text-gray-500">للحصول على المزايا الكاملة وتفعيل الدفع التلقائي</p>
-                           </div>
-                           <button 
-                            onClick={handlePayPalLogin}
-                            className="w-full bg-[#0070BA] hover:bg-[#005ea6] text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all"
-                           >
-                            {lt.payPalLoginBtn}
-                           </button>
-                        </div>
-                      ) : (
-                        <>
-                          {[
-                            { id: 'DAILY', label: t.plans.daily, price: t.plans.priceDay, rawPrice: "1.00", color: 'border-white/10 bg-white/5' },
-                            { id: 'MONTHLY', label: t.plans.monthly, price: t.plans.priceMonth, rawPrice: "5.00", color: 'border-emerald-500/30 bg-emerald-500/5' },
-                            { id: 'YEARLY', label: t.plans.yearly, price: t.plans.priceYear, rawPrice: "50.00", color: 'border-white/10 bg-white/5' }
-                          ].map((plan) => (
-                            <button 
-                              key={plan.id}
-                              onClick={() => {
-                                setSelectedPlan({ id: plan.id as SubscriptionTier, price: plan.rawPrice });
-                              }}
-                              className={cn(
-                                "w-full flex items-center justify-between p-5 rounded-3xl border transition-all hover:scale-[1.02] active:scale-[0.98]",
-                                plan.color
-                              )}
-                            >
-                              <div className="text-right">
-                                <p className="text-lg font-bold">{plan.label}</p>
-                                <p className="text-xs text-gray-500">{lang === 'ar' ? 'فوترة تلقائية' : 'Auto-renew'}</p>
-                              </div>
-                              <div className="text-left font-sans text-2xl font-black text-emerald-500">
-                                {plan.price}
-                              </div>
-                            </button>
-                          ))}
-                        </>
-                      )}
-                    </motion.div>
-                  ) : (
-                    <motion.div
-                      key="paypal"
-                      initial={{ opacity: 0, x: 20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: -20 }}
-                      className="space-y-6"
+                      <span className="text-sm">{t.option15m}</span>
+                      <ArrowLeft className={cn("w-4 h-4", lang === 'en' && 'rotate-180')} />
+                    </button>
+                    <button 
+                      onClick={() => setTargetAds(5)}
+                      className="w-full bg-white/5 border border-white/10 p-5 rounded-3xl flex items-center justify-between group hover:bg-emerald-500/10 hover:border-emerald-500/30 transition-all font-bold"
                     >
-                      <button 
-                        onClick={() => setSelectedPlan(null)}
-                        className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors"
-                      >
-                        {lang === 'ar' ? <ArrowRight className="w-4 h-4" /> : <ArrowLeft className="w-4 h-4" />}
-                        {lang === 'ar' ? 'العودة للاختيار' : 'Back to selection'}
-                      </button>
-                      
-                      <div className="bg-emerald-500/10 p-4 rounded-2xl border border-emerald-500/20 text-center mb-4">
-                         <p className="text-xs text-emerald-500 font-bold uppercase tracking-widest mb-1">{lt.noCardNeeded}</p>
-                         <p className="text-sm font-medium text-white">{translations[lang].plans[selectedPlan.id.toLowerCase() as keyof typeof translations.ar.plans]}</p>
-                      </div>
-
-                      <button 
-                        onClick={() => {
-                          updateSubscription(selectedPlan.id, `$${selectedPlan.price}`);
-                          alert(lt.codeSuccess);
-                        }}
-                        className="w-full bg-[#0070BA] hover:bg-[#005ea6] text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all shadow-xl shadow-blue-500/20 active:scale-[0.98]"
-                      >
-                        <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
-                           <path d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96 0 1.1.9 2 2 2h12v-2H7.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63h7.45c.75 0 1.41-.41 1.75-1.03l3.58-6.49c.08-.14.12-.31.12-.48 0-.55-.45-1-1-1H5.21l-.94-2H1zm16 16c-1.1 0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2z"/>
-                        </svg>
-                        <span className="text-lg">{lt.payBalance}</span>
-                      </button>
-
-                      <div className="relative flex items-center gap-4 my-4">
-                        <div className="flex-1 h-px bg-white/5" />
-                        <span className="text-[10px] text-gray-600 uppercase tracking-widest">{lang === 'ar' ? 'أو' : 'OR'}</span>
-                        <div className="flex-1 h-px bg-white/5" />
-                      </div>
-
-                      <div className="space-y-3">
-                         <p className="text-xs text-gray-500 text-center font-medium">{lt.haveCode}</p>
-                         <div className="flex gap-2">
-                           <input 
-                            type="text" 
-                            value={promoCode}
-                            onChange={(e) => setPromoCode(e.target.value)}
-                            placeholder={lt.enterCode}
-                            className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-emerald-500/40"
-                           />
-                           <button 
-                            onClick={handleRedeem}
-                            className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-xl text-xs font-bold transition-colors"
-                           >
-                            {lt.redeem}
-                           </button>
-                         </div>
-                      </div>
-
-                      <div className="opacity-50 grayscale pointer-events-none scale-90">
-                        <PayPalButtons 
-                          style={{ layout: "vertical", shape: "pill", color: "blue" }}
-                          disabled={true}
-                        />
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                      <span className="text-sm">{t.option60m}</span>
+                      <ArrowLeft className={cn("w-4 h-4", lang === 'en' && 'rotate-180')} />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="text-center space-y-6 py-4">
+                    <div className="space-y-2">
+                       <p className="text-emerald-500 font-bold uppercase tracking-widest text-xs">{t.remainingAds}</p>
+                       <p className="text-6xl font-black text-white">{targetAds - adsWatched}</p>
+                    </div>
+                    
+                    <button 
+                      onClick={handleWatchAd}
+                      className="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-5 rounded-2xl font-black text-xl shadow-2xl shadow-emerald-500/20 transition-all animate-pulse active:scale-95"
+                    >
+                      {lang === 'ar' ? 'مشاهدة إعلان' : 'Watch Ad'}
+                    </button>
+                    
+                    <p className="text-[10px] text-gray-600 uppercase tracking-widest leading-relaxed">
+                      {lang === 'ar' ? 'بمجرد انتهاء الإعلانات سيتم تفعيل الوقت تلقائياً' : 'Time will activate automatically after all ads'}
+                    </p>
+                  </div>
+                )}
               </div>
             </motion.div>
           </>
         )}
       </AnimatePresence>
     </div>
-    </PayPalScriptProvider>
   );
 }

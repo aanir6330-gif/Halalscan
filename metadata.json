@@ -1,11 +1,11 @@
 {
-  "name": "HalalScan",
+  "name": "Simple Halal Check",
   "description": "تطبيق ذكي لفحص المكونات الغذائية والتأكد من كونها حلال أم حرام باستخدام الذكاء الاصطناعي.",
   "requestFramePermissions": [
-    "camera",
-    "geolocation"
+    "camera"
   ],
   "majorCapabilities": [
-    "vision"
+    "vision",
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
   ]
 }
